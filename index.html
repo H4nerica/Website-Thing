@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catatan Nilai</title>
+  <style>
+    :root { color-scheme: light; --border: #d8d8d8; --ink: #222; --muted: #666; --bg: #f7f7f7; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px 16px; background: var(--bg); color: var(--ink);
+      font: 16px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(680px, 100%); margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    h1 { font-size: 1.35rem; margin: 0; font-weight: 650; }
+    button, input, select { font: inherit; }
+    button {
+      border: 1px solid var(--border); border-radius: 9px; padding: 9px 13px;
+      background: white; color: var(--ink); cursor: pointer;
+    }
+    button.primary { background: #222; border-color: #222; color: white; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #666; outline-offset: 2px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+    #entryForm {
+      background: white; border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px; margin-bottom: 18px;
+    }
+    #entryForm[hidden] { display: none; }
+    .fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    label { display: block; font-size: .88rem; color: var(--muted); margin-bottom: 5px; }
+    input, select {
+      width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border);
+      border-radius: 8px; background: white; color: var(--ink);
+    }
+    .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    #message { color: #9b2222; font-size: .9rem; margin: 8px 0 0; min-height: 1.2em; }
+    .entry {
+      display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center;
+      padding: 13px 12px; background: white; border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 8px;
+    }
+    .entry span { overflow-wrap: anywhere; }
+    .entry .delete { padding: 6px 9px; }
+    .empty { color: var(--muted); text-align: center; padding: 28px 12px; }
+    .count { color: var(--muted); font-size: .9rem; margin: 0 0 10px; }
+    @media (max-width: 480px) {
+      body { padding: 18px 12px; }
+      .fields { gap: 6px; }
+      .fields input, .fields select { padding: 9px 6px; font-size: .95rem; }
+      .entry { gap: 6px; padding: 11px 8px; font-size: .94rem; }
+      .entry .delete { padding: 5px 7px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Catatan Nilai</h1>
+      <button class="primary" id="addButton" type="button" aria-expanded="false">+ Tambah</button>
+    </header>
+
+    <section id="entryForm" hidden>
+      <form id="recordForm">
+        <div class="fields">
+          <div>
+            <label for="npm">NPM</label>
+            <input id="npm" name="npm" type="text" inputmode="numeric" pattern="[0-9]{3}"
+                   maxlength="3" placeholder="123" autocomplete="off" required>
+          </div>
+          <div>
+            <label for="year">Tahun</label>
+            <select id="year" name="year">
+              <option value="2023">2023</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+          </div>
+          <div>
+            <label for="nilai">Nilai</label>
+            <input id="nilai" name="nilai" type="text" inputmode="numeric" pattern="[0-9]{3}"
+                   maxlength="3" placeholder="100" autocomplete="off" required>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button id="cancelButton" type="button">Batal</button>
+          <button class="primary" type="submit">Simpan</button>
+        </div>
+        <p id="message" role="alert"></p>
+      </form>
+    </section>
+
+    <div class="toolbar">
+      <button id="jsonButton" type="button">Download JSON</button>
+      <button id="txtButton" type="button">Download TXT</button>
+      <button id="importButton" type="button">Import JSON</button>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+    </div>
+
+    <p class="count" id="count">0 catatan</p>
+    <section id="entries" aria-live="polite">
+      <div class="empty">Belum ada catatan. Tekan “+ Tambah” untuk mulai.</div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "catatanNilaiData";
+    let records = [];
+
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) records = parsed;
+      }
+    } catch (error) {
+      console.warn("Data lokal tidak dapat dibaca.", error);
+    }
+
+    const formPanel = document.getElementById("entryForm");
+    const recordForm = document.getElementById("recordForm");
+    const addButton = document.getElementById("addButton");
+    const message = document.getElementById("message");
+    const entries = document.getElementById("entries");
+    const count = document.getElementById("count");
+    const npmInput = document.getElementById("npm");
+    const nilaiInput = document.getElementById("nilai");
+
+    function saveLocal() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      } catch (error) {
+        alert("Data tidak bisa disimpan di browser. Silakan download JSON sebagai cadangan.");
+      }
+    }
+
+    function showForm(show) {
+      formPanel.hidden = !show;
+      addButton.setAttribute("aria-expanded", String(show));
+      message.textContent = "";
+      if (show) npmInput.focus();
+    }
+
+    // Keep these fields numeric and limit them to 3 digits.
+    for (const input of [npmInput, nilaiInput]) {
+      input.addEventListener("input", () => {
+        input.value = input.value.replace(/\D/g, "").slice(0, 3);
+      });
+    }
+
+    function render() {
+      entries.replaceChildren();
+      count.textContent = records.length + (records.length === 1 ? " catatan" : " catatan");
+
+      if (records.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Belum ada catatan. Tekan “+ Tambah” untuk mulai.";
+        entries.appendChild(empty);
+        return;
+      }
+
+      records.forEach((record, index) => {
+        const row = document.createElement("div");
+        row.className = "entry";
+        for (const value of [record.npm, record.tahun, record.nilai]) {
+          const cell = document.createElement("span");
+          cell.textContent = value;
+          row.appendChild(cell);
+        }
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete";
+        deleteButton.type = "button";
+        deleteButton.textContent = "Hapus";
+        deleteButton.setAttribute("aria-label", "Hapus catatan NPM " + record.npm);
+        deleteButton.addEventListener("click", () => {
+          records.splice(index, 1);
+          saveLocal();
+          render();
+        });
+        row.appendChild(deleteButton);
+        entries.appendChild(row);
+      });
+    }
+
+    recordForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const npm = npmInput.value.trim();
+      const nilai = nilaiInput.value.trim();
+      const tahun = document.getElementById("year").value;
+
+      if (!/^\d{3}$/.test(npm) || !/^\d{3}$/.test(nilai)) {
+        message.textContent = "NPM dan Nilai harus masing-masing tepat 3 digit.";
+        return;
+      }
+
+      records.push({ npm, tahun, nilai });
+      saveLocal();
+      render();
+      recordForm.reset();
+      showForm(false);
+    });
+
+    addButton.addEventListener("click", () => showForm(formPanel.hidden));
+    document.getElementById("cancelButton").addEventListener("click", () => {
+      recordForm.reset();
+      showForm(false);
+    });
+
+    function downloadFile(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById("jsonButton").addEventListener("click", () => {
+      downloadFile("catatan-nilai.json", JSON.stringify(records, null, 2), "application/json");
+    });
+
+    document.getElementById("txtButton").addEventListener("click", () => {
+      const lines = ["NPM\tTahun\tNilai", ...records.map(r => `${r.npm}\t${r.tahun}\t${r.nilai}`)];
+      downloadFile("catatan-nilai.txt", lines.join("\n"), "text/plain;charset=utf-8");
+    });
+
+    const importFile = document.getElementById("importFile");
+    document.getElementById("importButton").addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", async () => {
+      const file = importFile.files[0];
+      if (!file) return;
+      try {
+        const imported = JSON.parse(await file.text());
+        if (!Array.isArray(imported) || !imported.every(r =>
+          r && /^\d{3}$/.test(String(r.npm ?? "")) &&
+          /^\d{3}$/.test(String(r.nilai ?? "")) &&
+          ["2023", "2024", "2025", "2026", "Lainnya"].includes(String(r.tahun))
+        )) {
+          throw new Error("Format JSON tidak sesuai.");
+        }
+        if (confirm(`Import ${imported.length} catatan? Catatan yang ada akan diganti.`)) {
+          records = imported.map(r => ({ npm: String(r.npm), tahun: String(r.tahun), nilai: String(r.nilai) }));
+          saveLocal();
+          render();
+        }
+      } catch (error) {
+        alert("File JSON tidak valid atau formatnya tidak sesuai.");
+      } finally {
+        importFile.value = "";
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
